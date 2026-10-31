@@ -1,0 +1,111 @@
+--@diagnostic disable: missing-fields
+local cmp = require('cmp')
+local luasnip = require('luasnip')
+local cmp_autopairs = require "nvim-autopairs.completion.cmp"
+
+local M = {}
+
+function M.setup()
+  cmp.setup({
+    window = {
+      completion = {
+        border = "rounded",
+      },
+      documentation = {
+        border = "rounded",
+      },
+    },
+    formatting = {
+      format = function(entry, vim_item)
+        local KIND_ICONS = {
+          Tailwind = '󰹞󰹞󰹞󰹞󰹞󰹞󰹞󰹞',
+          Color = ' ',
+          Snippet = " ",
+        }
+        if vim_item.kind == 'Color' and entry.completion_item.documentation then
+          local _, _, r, g, b =
+              string.find(entry.completion_item.documentation, '^rgb%((%d+), (%d+), (%d+)')
+          local color
+          if r and g and b then
+            color = string.format('%02x', r) .. string.format('%02x', g) .. string.format('%02x', b)
+          else
+            color = entry.completion_item.documentation:gsub('#', '')
+          end
+          local group = 'Tw_' .. color
+
+          if vim.api.nvim_call_function('hlID', { group }) < 1 then
+            vim.api.nvim_command('highlight' .. ' ' .. group .. ' ' .. 'guifg=#' .. color)
+          end
+
+          vim_item.kind = KIND_ICONS.Tailwind
+          vim_item.kind_hl_group = group
+          return vim_item
+        end
+        vim_item.kind = KIND_ICONS[vim_item.kind] or vim_item.kind
+        return vim_item
+      end,
+    },
+    snippet = {
+      expand = function(args)
+        luasnip.lsp_expand(args.body)
+      end,
+    },
+    mapping = {
+      ["<C-j>"] = cmp.mapping.select_next_item(),
+      ["<C-k>"] = cmp.mapping.select_prev_item(),
+      ["<C-l>"] = cmp.mapping.confirm({
+                 behavior = cmp.ConfirmBehavior.Replace,
+                select = true,
+                          }),
+
+      ["<C-h>"] = cmp.mapping.abort(),
+      ["<C-d>"] = cmp.mapping.scroll_docs(-4),
+      ["<C-f>"] = cmp.mapping.scroll_docs(4),
+
+      ["<C-Space>"] = cmp.mapping(function(fallback)
+        if cmp.visible() then
+          cmp.select_next_item()
+        elseif luasnip.expand_or_jumpable() then
+          luasnip.expand_or_jump()
+        else
+          fallback()
+        end
+      end, { "i", "s" }),
+      ["<C-Space>"] = cmp.mapping.complete(),
+    },
+    sources = {
+      { name = "nvim_lsp" },
+      { name = "path" },
+      { name = "luasnip" },
+      { name = "buffer" },
+    },
+  })
+
+  cmp.event:on("confirm_done", cmp_autopairs.on_confirm_done { map_char = { tex = "" } })
+
+  cmp.setup.filetype('gitcommit', {
+    sources = cmp.config.sources({
+      { name = 'git' },
+    }, {
+      { name = 'buffer' },
+    })
+  })
+
+  cmp.setup.cmdline({ '/', '?' }, {
+    mapping = cmp.mapping.preset.cmdline(),
+    sources = {
+      { name = 'buffer' }
+    }
+  })
+
+  cmp.setup.cmdline(':', {
+    mapping = cmp.mapping.preset.cmdline(),
+    sources = cmp.config.sources({
+      { name = 'path' }
+    }, {
+      { name = 'cmdline' }
+    })
+  })
+end
+
+return M
